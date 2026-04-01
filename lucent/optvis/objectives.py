@@ -20,6 +20,7 @@ import torch
 import torch.nn.functional as F
 from decorator import decorator
 from lucent.optvis.objectives_util import _make_arg_str, _extract_act_pos, _T_handle_batch
+from torch.nn import MaxPool2d
 
 
 class Objective():
@@ -93,6 +94,38 @@ def wrap_objective():
 
 def handle_batch(batch=None):
     return lambda f: lambda model: f(_T_handle_batch(model, batch=batch))
+
+
+# Maximally activates entire layer
+@wrap_objective()
+def layer(layer, batch=None):
+    @handle_batch(batch)
+    def inner(model):
+        layer_t = model(layer)
+        return -layer_t.mean()
+    return inner
+
+# Maximally activates W x R for one layer
+@wrap_objective()
+def activation(layer, W, batch=None):
+    @handle_batch(batch)
+    def inner(model):
+        layer_t = model(layer)
+        layer_avg = torch.clone(layer_t)
+        
+        # Check averaging
+        # Replace each element with average across row & column
+        for i in range(len(layer_t)):
+            for j in range(len(layer_t[i])):
+                layer_avg[i,j] = torch.mean(layer_t[i,:]) + torch.mean(layer_t[:,j])/2
+
+        #print(layer_t.shape)
+        flatten_layer = torch.flatten(layer_avg)
+        
+        #W_mat = torch.rand(flatten_layer.shape[0])
+        dot_act = torch.dot(W, flatten_layer)
+        return -dot_act
+    return inner
 
 
 @wrap_objective()

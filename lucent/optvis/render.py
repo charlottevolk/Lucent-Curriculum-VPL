@@ -24,11 +24,14 @@ import torch
 
 from lucent.optvis import objectives, transform, param
 from lucent.misc.io import show
+import torchvision
+from torchvision import transforms
 
 
 def render_vis(
     model,
     objective_f,
+    ref_image_path,
     param_f=None,
     optimizer=None,
     transforms=None,
@@ -42,8 +45,20 @@ def render_vis(
     show_inline=False,
     fixed_image_size=None,
 ):
+
+
+    data_transforms = torchvision.transforms.Compose([
+        torchvision.transforms.Resize(227), # changed from 128
+        torchvision.transforms.Grayscale(),
+        torchvision.transforms.ToTensor(),
+
+    ])
+
+    train_ref_img = Image.open(ref_image_path)
+    train_ref_img = data_transforms(train_ref_img)
+
     if param_f is None:
-        param_f = lambda: param.image(128, device=next(model.parameters()).device)
+        param_f = lambda: param.image(227, device=next(model.parameters()).device)
     # param_f is a function that should return two things
     # params - parameters to update, which we pass to the optimizer
     # image_f - a function that returns an image as a tensor
@@ -66,26 +81,26 @@ def render_vis(
             # See https://pytorch.org/docs/stable/torchvision/models.html
             transforms.append(transform.normalize())
 
-    # Upsample images smaller than 224
+    # Upsample images smaller than 227
     image_shape = image_f().shape
     if fixed_image_size is not None:
         new_size = fixed_image_size
-    elif image_shape[2] < 224 or image_shape[3] < 224:
-        new_size = 224
+    elif image_shape[2] < 227 or image_shape[3] < 227:
+        new_size = 227
     else:
         new_size = None
     if new_size:
         transforms.append(
-            torch.nn.Upsample(size=new_size, mode="bilinear", align_corners=True)
+            torch.nn.Upsample(size=new_size, mode="bilinear")#, align_corners=True)
         )
 
     transform_f = transform.compose(transforms)
 
-    hook, features = hook_model(model, image_f, return_hooks=True)
+    hook = hook_model(model, image_f, train_ref_img, transform_f, return_hooks=True)
     objective_f = objectives.as_objective(objective_f)
 
     if verbose:
-        model(transform_f(image_f()))
+        model(transform_f(image_f()), train_ref_img)
         print("Initial loss: {:.3f}".format(objective_f(hook)))
 
     images = []
@@ -94,7 +109,7 @@ def render_vis(
             def closure():
                 optimizer.zero_grad()
                 try:
-                    model(transform_f(image_f()))
+                    model(transform_f(image_f()), train_ref_img)
                 except RuntimeError as ex:
                     if i == 1:
                         # Only display the warning message
@@ -124,9 +139,9 @@ def render_vis(
             print("Loss at step {}: {:.3f}".format(i, objective_f(hook)))
         images.append(tensor_to_img_array(image_f()))
 
-    # Clear hooks
-    for module_hook in features.values():
-        del module_hook.module._forward_hooks[module_hook.hook.id]
+    # # Clear hooks
+    # for module_hook in features.values():
+    #     del module_hook.module._forward_hooks[module_hook.hook.id]
 
     if save_image:
         export(image_f(), image_name)
@@ -190,7 +205,7 @@ class ModuleHook:
         self.hook.remove()
 
 
-def hook_model(model, image_f, return_hooks=False):
+def hook_model(model, image_f, train_ref_img, transform_f, return_hooks=False):
     features = OrderedDict()
 
     # recursive hooking function
@@ -216,6 +231,6 @@ def hook_model(model, image_f, return_hooks=False):
         assert out is not None, "There are no saved feature maps. Make sure to put the model in eval mode, like so: `model.to(device).eval()`. See README for example."
         return out
 
-    if return_hooks:
-        return hook, features
+    # if return_hooks:
+    #     return hook, features
     return hook
