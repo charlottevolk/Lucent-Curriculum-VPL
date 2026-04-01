@@ -150,5 +150,4 @@ standard_transforms = [
     #random_scale([1 + (i - 5) / 50.0 for i in range(11)]),
     random_rotate(list(range(-10, 11)) + 5 * [0]),
     jitter(4),
-    grayscale(),
 ]
