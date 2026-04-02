@@ -96,7 +96,7 @@ def render_vis(
 
     transform_f = transform.compose(transforms)
 
-    hook = hook_model(model, image_f, train_ref_img, transform_f, return_hooks=True)
+    hook, features = hook_model(model, image_f, train_ref_img, transform_f, return_hooks=True)
     objective_f = objectives.as_objective(objective_f)
 
     if verbose:
@@ -139,9 +139,9 @@ def render_vis(
             print("Loss at step {}: {:.3f}".format(i, objective_f(hook)))
         images.append(tensor_to_img_array(image_f()))
 
-    # # Clear hooks
-    # for module_hook in features.values():
-    #     del module_hook.module._forward_hooks[module_hook.hook.id]
+    for module_hook in features.values():
+        module_hook.close()
+    torch.cuda.empty_cache()
 
     if save_image:
         export(image_f(), image_name)
@@ -231,6 +231,6 @@ def hook_model(model, image_f, train_ref_img, transform_f, return_hooks=False):
         assert out is not None, "There are no saved feature maps. Make sure to put the model in eval mode, like so: `model.to(device).eval()`. See README for example."
         return out
 
-    # if return_hooks:
-    #     return hook, features
-    return hook
+    if return_hooks:
+        return hook, features
+    return hook, {}
