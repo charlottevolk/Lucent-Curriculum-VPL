@@ -8,7 +8,7 @@ from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from umap import UMAP
-from skip_alexnet import AlexNet
+from models.skip_alexnet import AlexNet
 import torch
 from scipy.stats import zscore
 
@@ -34,7 +34,14 @@ def read_data(dir, filename):
 
 # Define paths
 base_dir = 'saved_outputs/'
-activation_dir = base_dir + 'skip_activations_two_step_models_imagenet_100/'
+nonseq_dir = base_dir + 'nonsequential_doubled_SF_AlexNet/'
+seq_dir = base_dir + 'sequential_doubled_SF_AlexNet/'
+shuffled_dir = base_dir + 'shuffled_doubled_SF_AlexNet/'
+
+activation_dir = base_dir + 'collecting_activations_imagenet_100_AlexNet/'
+save_dir = base_dir + 'plots/'
+if not os.path.exists(save_dir): os.makedirs(save_dir)
+
 models = ['Non-seq', 'Shuff', 'Seq']
 
 colors = sns.color_palette("colorblind", 3)
@@ -49,18 +56,15 @@ trials = range(1, 2)
 stimulus_noise_sd = 0.02
 confidence_noise_sd = 0.3
 
-nonseq_dir = base_dir + 'skip_nonseq_5.0_1.0_noise_sd_{}_added_confidence_noise_sd_{}_single_sample_update/'.format(stimulus_noise_sd, confidence_noise_sd)
-seq_dir = base_dir + 'skip_seq_5.0_1.0_noise_sd_{}_added_confidence_noise_sd_{}_single_sample_update/'.format(stimulus_noise_sd, confidence_noise_sd)
-shuffled_dir = base_dir + 'skip_shuff_5.0_1.0_noise_sd_{}_added_confidence_noise_sd_{}_single_sample_update/'.format(stimulus_noise_sd, confidence_noise_sd)
 dirs = [nonseq_dir, shuffled_dir, seq_dir]
 
 epsilon = 1e-8
 
+sep = 1.0
+
 all_model_activations = []
 all_model_labels = []
 
-# Rastermap visualization
-# for model in models:
 for model_dir, model in zip(dirs, models):
     print(f"Processing model: {model}")
 
@@ -68,21 +72,16 @@ for model_dir, model in zip(dirs, models):
 
     for trial in trials:
         print(f"  Trial {trial}")
-        activations_all = np.load(activation_dir + 'activations/100_imgs_all_activations_no_noise_1000_imagenet_0_sf_0.05_sep_0.5_lr_0.0001_model_trial_{}_batch_size_1.npy'.format(trial))
+        activations_all = np.load(activation_dir + f'activations/100_imgs_all_activations_no_noise_1000_imagenet_0_sf_0.05_sep_0.5_lr_0.0001_model_trial_{trial}_batch_size_1.npy')
         activations_all = np.float64(activations_all)
-
-        if 'step 1' in model:
-            sep = 5.0
-        else:
-            sep = 1.0
         
-        path = model_dir + 'models/original_model_0_sf_0.05_sep_{}_trial_{}.pth'.format(sep, trial)
+        path = model_dir + f'models/original_model_0_sf_0.05_sep_{sep}_trial_{trial}.pth'
         alexnet = AlexNet()
         alexnet.load_state_dict(torch.load(path, map_location='cpu'))
         readout_weights = alexnet.fc1.weight.data[0]
 
         num_neurons = 150
-        source_path = model_dir + 'data/max_abs_neurons_{}_sep_{}_lr_0.0001_trial_{}.csv'.format(num_neurons, sep, trial)
+        source_path = model_dir + f'data/max_abs_neurons_{num_neurons}_sep_{sep}_lr_0.0001_trial_{trial}.csv'
         neuron_indices = np.loadtxt(source_path, delimiter=",", dtype=int)[1]
         sorted_indices = np.argsort(neuron_indices)
         important_neurons = neuron_indices[sorted_indices]
@@ -122,4 +121,4 @@ ax = plt.gca()
 ax.spines['top'].set_visible(False)
 ax.spines['right'].set_visible(False)
 plt.tight_layout()
-plt.savefig(f"{base_dir}/plots/pca_activations.svg", bbox_inches='tight')
+plt.savefig(f"{save_dir}/pca_activations.svg", bbox_inches='tight')

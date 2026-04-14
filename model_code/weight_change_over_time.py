@@ -14,8 +14,11 @@ TITLE_SIZE = 20
 MEDIUM_SIZE = 28
 BIGGER_SIZE = 12
 
-weight_dir = 'saved_outputs/weights/'
-save_dir = 'saved_outputs/plots/'
+base_dir = 'saved_outputs/'
+single_angle_sep_dir = base_dir + 'single_angle_sep_doubled_SF/'
+
+weight_dir = single_angle_sep_dir + '0.5_angle_sep/weights/'
+save_dir = base_dir + 'plots/'
 
 iterations = np.arange(1,501)
 
@@ -106,13 +109,14 @@ for run in train_params:
         all_c3_weights.append(c3_weights)
         all_c4_weights.append(c4_weights)
         all_c5_weights.append(c5_weights)
-            
+    
+    # Skip: Normalize weights - subtract initial value
     all_c1_weights_norm = [c1_weights - c1_weights[0] for c1_weights in all_c1_weights]
     all_c2_weights_norm = [c2_weights - c2_weights[0] for c2_weights in all_c2_weights]
     all_c3_weights_norm = [c3_weights - c3_weights[0] for c3_weights in all_c3_weights]
     all_c4_weights_norm = [c4_weights - c4_weights[0] for c4_weights in all_c4_weights]
     all_c5_weights_norm = [c5_weights - c5_weights[0] for c5_weights in all_c5_weights]
-
+    
     all_c1_weights_mean = np.mean(np.array(all_c1_weights_norm), axis=0)
     all_c2_weights_mean = np.mean(np.array(all_c2_weights_norm), axis=0)
     all_c3_weights_mean = np.mean(np.array(all_c3_weights_norm), axis=0)
@@ -145,7 +149,6 @@ for run in train_params:
     ax = plt.gca()
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
-    ax.ticklabel_format(axis='y', style='sci', scilimits=(0,0))
 
     plt.tight_layout()
 
@@ -153,11 +156,22 @@ for run in train_params:
 
     plt.legend()
 
-    train_fn = save_dir+'skip_weight_changes.svg'
+    norm_suffix = '_normalized' if normalize_by_final else ''
+    train_fn = save_dir+f'skip_weight_changes_doubled_SF_random_readout_init_{norm_suffix}.svg'
     plt.savefig(train_fn)
     # plt.show()
 
     # Convolutional weights
+
+    # Convolutional weights
+    
+    all_c1_weights = []
+    all_c2_weights = []
+    all_c3_weights = []
+    all_c4_weights = []
+    all_c5_weights = []
+
+    plt.figure(figsize=(5,5), dpi=300)
 
     for trial in trials:
 
@@ -202,12 +216,13 @@ for run in train_params:
         all_c4_weights.append(c4_weights)
         all_c5_weights.append(c5_weights)
             
+    # Conv: Normalize weights - subtract initial value
     all_c1_weights_norm = [c1_weights - c1_weights[0] for c1_weights in all_c1_weights]
     all_c2_weights_norm = [c2_weights - c2_weights[0] for c2_weights in all_c2_weights]
     all_c3_weights_norm = [c3_weights - c3_weights[0] for c3_weights in all_c3_weights]
     all_c4_weights_norm = [c4_weights - c4_weights[0] for c4_weights in all_c4_weights]
     all_c5_weights_norm = [c5_weights - c5_weights[0] for c5_weights in all_c5_weights]
-
+    
     all_c1_weights_mean = np.mean(np.array(all_c1_weights_norm), axis=0)
     all_c2_weights_mean = np.mean(np.array(all_c2_weights_norm), axis=0)
     all_c3_weights_mean = np.mean(np.array(all_c3_weights_norm), axis=0)
@@ -249,6 +264,6 @@ for run in train_params:
 
     plt.legend()
 
-    train_fn = save_dir+'conv_weight_changes.svg'
+    train_fn = save_dir+f'conv_weight_changes_doubled_SF_random_readout_init_{norm_suffix}.svg'
     plt.savefig(train_fn)
     # plt.show()

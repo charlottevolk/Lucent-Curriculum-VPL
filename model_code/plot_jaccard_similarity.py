@@ -24,26 +24,23 @@ deg = u'\N{DEGREE SIGN}'
 
 sns.set_palette("colorblind")
 
+base_dir = 'saved_outputs/'
+seq_dir = base_dir+'sequential_doubled_SF_AlexNet/'
+shuff_dir = base_dir+'shuffled_doubled_SF_AlexNet/'
+nonseq_dir = base_dir+'nonsequential_doubled_SF_AlexNet/'
+
 plotting_confidence = True
 
 stimulus_noise_sd = 0.02
 confidence_noise_sd = 0.3
 num_trials = 20
 
-base_dir = 'saved_outputs/'
-save_dir = 'saved_outputs/plots/'
+save_dir = base_dir + 'plots/'
+if not os.path.exists(save_dir): os.makedirs(save_dir)
 
-base_dir_list = [
-    base_dir+'skip_nonseq_5.0_1.0_noise_sd_'+str(stimulus_noise_sd)+'_added_confidence_noise_sd_'+str(confidence_noise_sd)+'_single_sample_update/',
-    base_dir+'skip_shuff_5.0_1.0_noise_sd_'+str(stimulus_noise_sd)+'_added_confidence_noise_sd_'+str(confidence_noise_sd)+'_single_sample_update/',
-    base_dir+'skip_seq_5.0_1.0_noise_sd_'+str(stimulus_noise_sd)+'_added_confidence_noise_sd_'+str(confidence_noise_sd)+'_single_sample_update/',
-]
+base_dir_list = [nonseq_dir, shuff_dir, seq_dir]
 
-model_names = [
-    'Non-seq',
-    'Shuff',
-    'Seq',
-]
+model_names = ['Non-seq', 'Shuff', 'Seq']
 
 num_indices = 150
 
@@ -88,7 +85,7 @@ for model_name, model_dir in zip(model_names, base_dir_list):
         second_step_weights = np.load(model_dir+'weights/all_fc_weights_ref_0_sf_0.05_sep_1.0_lr_0.0001_trial_'+str(trial)+'.npy', allow_pickle=True)
         all_weights = np.concatenate((first_step_weights, second_step_weights), axis=0)
 
-        iteration_steps = range(0,11)
+        iteration_steps = range(0,50)
         subspace_history = []
         for i in iteration_steps:
             weights = all_weights[i].squeeze()
@@ -102,7 +99,7 @@ for model_name, model_dir in zip(model_names, base_dir_list):
     mean_sims = np.mean(all_similarities, axis=0)
     sem_sims = sem(all_similarities, axis=0)
 
-    plot_steps = range(20,240,20)
+    plot_steps = range(20,1000,20)
     # Plot
     plt.plot(plot_steps, mean_sims, lw=5, solid_capstyle='round', label=model_name)
     plt.fill_between(plot_steps, mean_sims-sem_sims, mean_sims+sem_sims, alpha=0.3, interpolate=True)

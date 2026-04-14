@@ -14,27 +14,17 @@ from natsort import natsorted
 class GratingDataset(Dataset):
     """Grating dataset."""
 
-    def __init__(self, root_dir, transform=None, img_type='Target', ref_orientation=0, separation_angle=10, contrast=1, phase=0, spatial_freq=10, num_images=1000, scaled=False, force_type='none', factor=7.8):
+    def __init__(self, root_dir, transform=None, img_type='Target', num_images=1000, scaled=False, force_type='none', factor=1.0):
         """
         Args:
             root_dir (string): Directory with all the images.
             transform (callable, optional): Optional transform to be applied
                 on a sample.
-            ref_orientation (int): The orientation of the reference grating
-            separation_angle (int): The separation angle between the reference and test grating
-            contrast (int): The contrast of the grating
-            phase (int): The phase of the grating
-            spatial_freq (int): The spatial frequency of the grating
 
         """
         self.root_dir = root_dir
         self.transform = transform
         self.type = img_type
-        self.ref_orientation = ref_orientation
-        self.separation_angle = separation_angle
-        self.contrast = contrast
-        self.phase = phase
-        self.spatial_freq = spatial_freq
         self.num_images = num_images
         self.image_list = os.listdir(root_dir)
         self.CW_list = []

@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import csv
 import numpy as np
-import scipy.stats as stats
+from scipy.stats import sem
 import seaborn as sns
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
@@ -36,21 +36,24 @@ plt.rc('legend', fontsize=SMALLEST_SIZE)    # legend fontsize
 sns.set_palette("colorblind", 3)
 
 base_dir = 'saved_outputs/'
-save_dir = 'saved_outputs/plots/'
+seq_dir = base_dir + 'sequential_doubled_SF_AlexNet/'
+shuff_dir = base_dir + 'shuffled_doubled_SF_AlexNet/'
+nonseq_dir = base_dir + 'nonsequential_doubled_SF_AlexNet/'
+save_dir = base_dir + 'plots/'
 
 trials = range(1,21)
 noise_sd = 0.02
 confidence_sd = 0.3
 
 model_labels = ['Non-sequential', 'Shuffled', 'Sequential']
-model_dirs = [base_dir + 'skip_nonseq_5.0_1.0_noise_sd_'+str(noise_sd)+'_added_confidence_noise_sd_'+str(confidence_sd)+'_single_sample_update/',
-              base_dir + 'skip_shuff_5.0_1.0_noise_sd_'+str(noise_sd)+'_added_confidence_noise_sd_'+str(confidence_sd)+'_single_sample_update/',
-              base_dir + 'skip_seq_5.0_1.0_noise_sd_'+str(noise_sd)+'_added_confidence_noise_sd_'+str(confidence_sd)+'_single_sample_update/',
-            ]
+model_dirs = [nonseq_dir, shuff_dir, seq_dir]
+
+test_ref_ori = 0
+test_sf = 0.1
 
 fig, ax = plt.subplots(figsize=(7,5), dpi=300)
 plt.xlabel("N", labelpad=12)
-plt.ylabel(r"$\Delta$Acc./N", labelpad=12)
+plt.ylabel(r"$\Delta$Acc/N", labelpad=12)
 plt.ticklabel_format(axis='y', style='sci', scilimits=(0,0))
 
 num_neurons = 250
@@ -59,14 +62,17 @@ neurons_lesioned = list(range(10, num_neurons+1, 10))
 for model_dir, model_name in zip(model_dirs, model_labels):
     transfer_accuracies = []
     for trial_num in trials:
-        base_acc = np.mean(read_data(model_dir, 'data/skip/SF_doubled_lr_0.0001/0_neurons_transfer_accuracy_ref_0_sf_0.1_sep_1.0_lr_0.0001_trial_'+str(trial_num)+'.csv'))
+        base_acc = np.mean(read_data(model_dir, 'data/transfer_data_ref_'+str(test_ref_ori)+'_sf_'+str(test_sf)+'_sep_1.0_lr_0.0001_trial_'+str(trial_num)+'.csv'))
         t_acc_trial = []
         for neurons in neurons_lesioned:
-            t_acc = read_data(model_dir, 'data/skip/SF_doubled_lr_0.0001/'+str(neurons)+'_neurons_transfer_accuracy_ref_0_sf_0.1_sep_1.0_lr_0.0001_trial_'+str(trial_num)+'.csv')
-            t_acc_trial.append((base_acc - np.mean(t_acc))/neurons)
+            t_acc = read_data(model_dir, 'data/lesioning_'+str(neurons)+'_neurons_transfer_data_ref_'+str(test_ref_ori)+'_sf_'+str(test_sf)+'_sep_1.0_lr_0.0001_trial_'+str(trial_num)+'.csv')
+            # t_acc_trial.append((base_acc - np.mean(t_acc))/neurons)
+            t_acc_trial.append((np.mean(t_acc) - base_acc)/neurons)
+            # print(base_acc - np.mean(t_acc))
+            print(f"Trial {trial_num}, Model {model_name}, Neurons lesioned {neurons}: Accuracy drop per neuron: {(base_acc - np.mean(t_acc))/neurons}")
         transfer_accuracies.append(t_acc_trial)
     acc_mean = np.mean(transfer_accuracies, axis=0)
-    acc_std = np.std(transfer_accuracies, axis=0)
+    acc_std = sem(transfer_accuracies, axis=0)
 
     plt.plot(neurons_lesioned, acc_mean, lw=5, label=model_name, color=sns.color_palette("colorblind")[model_labels.index(model_name)])
     plt.scatter(neurons_lesioned, acc_mean, s=150, color=sns.color_palette("colorblind")[model_labels.index(model_name)])

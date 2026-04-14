@@ -4,4 +4,4 @@
 
 To replicate the model results, follow the instructions in the README file inside the model_code folder.
 
-To replicate the human observer results, follow the instrucitons in the README file inside the data_analysis_code folder.
+To replicate the human observer results, follow the instructions in the README file inside the data_analysis_code folder.

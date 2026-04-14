@@ -34,19 +34,30 @@ plt.rc('legend', fontsize=SMALLEST_SIZE)    # legend fontsize
 #plt.rc('title', fontsize=MEDIUM_SIZE)  # fontsize of the figure title
 
 colours = sns.color_palette("colorblind", 6)
-cols = [colours[1], colours[3], colours[4]]
 
 lambda_reg = 0.0001
 
-base_dir = '' # specify if model data stored somewhere else
-save_dir = 'saved_outputs/plots/'
-
 plot_frozen_readout = False
+transfer_condition = 'SF' # or ref_ori
+
+base_dir = 'saved_outputs/' # specify if model data stored somewhere else
+seq_dir = base_dir + f'sequential_doubled_SF_AlexNet/'
+shuff_dir = base_dir + f'shuffled_doubled_SF_AlexNet/'
+nonseq_dir = base_dir + f'nonsequential_doubled_SF_AlexNet/'
+
+# For Fig. 6D only
+shuff_forced_seq = base_dir + 'shuffled_forced_sequential_doubled_SF_factor_'+str(factor)+'/'
+frozen_readout = base_dir + 'frozen_readout_doubled_SF/'
+
+if not os.path.exists(save_dir): os.makedirs(save_dir)
+save_dir = base_dir + 'plots/'
 
 if plot_frozen_readout:
-    x_labels = ['Non-sequential', 'Sequential', 'Shuffled 6:1', 'Frozen Readout']
+    x_labels = ['Non-sequential', 'Sequential', 'Shuffled 10:1', 'Frozen Readout']
+    cols = [colours[0], colours[1], colours[2], colours[4]]
 else:
     x_labels = ['Non-sequential', 'Shuffled', 'Sequential']
+    cols = [colours[0], colours[1], colours[2]]
 
 labels = x_labels
 
@@ -65,25 +76,29 @@ trials = range(1,21)
 means = np.zeros(len(labels))
 all_vals = [[] for _ in range(len(labels))]
 
-factor = 6.0 # change if desired
+factor = 10.0 # change if desired
 forced_steps = 25
 
+if transfer_condition == 'ref_ori':
+    spatial_freq_train = 0.05
+    spatial_freq_test = 0.05
+    ref_angle_train = 0
+    ref_angle_test = 15
+elif transfer_condition == 'SF':
+    spatial_freq_train = 0.05
+    spatial_freq_test = 0.1
+    ref_angle_train = 0
+    ref_angle_test = 0
+
 for trial_num in trials:
-    seq_dir = base_dir + 'skip_seq_5.0_1.0_noise_sd_'+str(noise_sd)+'_added_confidence_noise_sd_'+str(confidence_sd)+'_single_sample_update/'
-    shuff_dir = base_dir + 'skip_shuff_5.0_1.0_noise_sd_'+str(noise_sd)+'_added_confidence_noise_sd_'+str(confidence_sd)+'_single_sample_update/'
-    nonseq_dir = base_dir + 'skip_nonseq_5.0_1.0_noise_sd_'+str(noise_sd)+'_added_confidence_noise_sd_'+str(confidence_sd)+'_single_sample_update/'
-
-    shuff_forced_seq = base_dir + 'skip_shuff_5.0_1.0_noise_sd_'+str(noise_sd)+'_added_confidence_noise_sd_'+str(confidence_sd)+'_single_sample_update_forced_sequential_with_weighted_samples_beginning_'+str(forced_steps)+'_steps_factor_'+str(factor)+'/'
-    frozen_readout = base_dir + 'FROZEN_READOUT_skip_nonseq_from_forced_seq_w_factor_6.0_num_steps_25_5.0_1.0_noise_sd_'+str(noise_sd)+'_added_confidence_noise_sd_'+str(confidence_sd)+'_single_sample_update/'
-
     if plot_frozen_readout:
-        dirs = [nonseq_dir_end, seq_dir, shuff_forced_seq, frozen_readout]
+        dirs = [nonseq_dir, seq_dir, shuff_forced_seq, frozen_readout]
     else:
-        dirs = [nonseq_dir_end, shuff_dir, seq_dir]
+        dirs = [nonseq_dir, shuff_dir, seq_dir]
 
     for i, (dir, label) in enumerate(zip(dirs, labels)):
         try:
-            transfer_accuracy_data = read_data(dir, 'data/skip/SF_doubled_lr_0.0001/transfer_accuracy_ref_0_sf_0.1_sep_1.0_lr_0.0001_trial_'+str(trial_num)+'.csv')
+            transfer_accuracy_data = read_data(dir, f'data/transfer_accuracy_ref_{ref_angle_test}_sf_{spatial_freq_test}_sep_1.0_lr_0.0001_trial_'+str(trial_num)+'.csv')
         except:
             print('not found', dir)
             continue
@@ -162,7 +177,7 @@ results = {pair: compute_statistical_significance(groups[pair[0]], groups[pair[1
 plt.figure(figsize=(8,5), dpi=300)
 ax=plt.gca()
 if plot_frozen_readout:
-    colors = {0: cols[0], 1: cols[2], 2: cols[3], 3: cols[4]}
+    colors = {0: cols[0], 1: cols[1], 2: cols[2], 3: cols[3]}
 else:
     colors = {0: cols[0], 1: cols[1], 2: cols[2]}
 ax = sns.boxplot(data=all_vals, palette=colors)
@@ -183,7 +198,7 @@ for pair in results.keys():
 starbars.draw_annotation(annotations)
 
 if plot_frozen_readout:
-    plt.xticks([0,1,2,3], ['Non-seq', 'Seq', 'Shuff 6:1', 'Frozen'])
+    plt.xticks([0,1,2,3], ['Non-seq', 'Seq', 'Shuff 10:1', 'Frozen'])
 else:
     plt.xticks([0,1,2], ["Nonseq", "Shuff", "Seq"])
 
@@ -195,5 +210,8 @@ ax.spines['right'].set_visible(False)
 plt.ylabel('Transfer Accuracy', labelpad=12)
 plt.xlabel('Condition', labelpad=12)
 plt.tight_layout()
-plt.savefig(save_dir+'model_comparison_transfer_accuracy.svg')
+if plot_frozen_readout:
+    plt.savefig(save_dir+'model_comparison_transfer_accuracy_frozen_readout.svg')
+else:
+    plt.savefig(save_dir+f'model_comparison_transfer_accuracy_doubled_SF_AlexNet.svg')
 # plt.show()

@@ -8,7 +8,7 @@ from scipy.stats import sem
 from sklearn.metrics import r2_score
 from sklearn.linear_model import LinearRegression
 
-from skip_alexnet import AlexNet
+from models.skip_alexnet import AlexNet
 import torch
 
 SMALLEST_SIZE = 18
@@ -27,8 +27,8 @@ plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
 plt.rc('legend', fontsize=SMALLEST_SIZE)    # legend fontsize
 #plt.rc('title', fontsize=MEDIUM_SIZE)  # fontsize of the figure title
 
-sns.set_palette("colorblind")
-colors = sns.color_palette("colorblind")[:3]
+# sns.set_palette("colorblind")
+colors = sns.color_palette("viridis", 19)
 
 def read_data(dir, filename):
     file = open(dir+filename)
@@ -39,12 +39,38 @@ def read_data(dir, filename):
     data = data.astype(np.float64)
     return data
 
+factors_seq = [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
+factors_antiseq = [10.0, 9.0, 8.0, 7.0, 6.0, 5.0, 4.0, 3.0, 2.0]
+models = ['1:10', '1:9', '1:8', '1:7', '1:6', '1:5', '1:4', '1:3', '1:2', '1:1', '2:1','3:1', '4:1', '5:1', '6:1', '7:1', '8:1', '9:1', '10:1']
+
+by_contribution = False
+transfer_condition = 'SF' # 'ref_ori' or 'SF'
+
 # Define Paths
 base_dir = 'saved_outputs/'
-save_dir = 'saved_outputs/plots/'
-activation_dir = base_dir+'skip_activations_two_step_models_imagenet_100/'
-models = ['1:10', '1:9', '1:8', '1:7', '1:6', '1:5', '1:4', '1:3', '1:2', '1:1', '2:1','3:1', '4:1', '5:1', '6:1', '7:1', '8:1', '9:1', '10:1']
+base_shuffled_dir = base_dir + 'shuffled_doubled_SF_AlexNet/'
+forced_seq_dirs = [base_dir+'forced_sequential_doubled_SF_AlexNet_factor_'+str(factor)+'/' for factor in factors_seq]
+forced_antiseq_dirs = [base_dir+'forced_antisequential_doubled_SF_AlexNet_factor_'+str(factor)+'/' for factor in factors_antiseq]
+
+save_dir = base_dir + 'plots/'
+activation_dir = base_dir+'collecting_activations_imagenet_100_AlexNet/'
+
 trials = range(1, 21)
+
+if transfer_condition == 'ref_ori':
+    root_dir = 'StimulusImages/SG_train_double_sf/'
+    test_root_dir = 'StimulusImages/SG_test_changed_ref_15/'
+    spatial_freq_train = 0.05
+    spatial_freq_test = 0.05
+    ref_angle_train = 0
+    ref_angle_test = 15
+elif transfer_condition == 'SF':
+    root_dir = 'StimulusImages/SG_train_double_sf/'
+    test_root_dir = 'StimulusImages/SG_test_double_sf/'
+    spatial_freq_train = 0.05
+    spatial_freq_test = 0.1
+    ref_angle_train = 0
+    ref_angle_test = 0
 
 stimulus_noise_sd = 0.02
 confidence_noise_sd = 0.3
@@ -52,11 +78,7 @@ num_steps = 25
 
 num_neurons = 150
 
-shuffled_dir = base_dir+'skip_shuff_5.0_1.0_noise_sd_'+str(stimulus_noise_sd)+'_added_confidence_noise_sd_'+str(confidence_noise_sd)+'_single_sample_update/'
-seq_dirs = [base_dir+'skip_shuff_5.0_1.0_noise_sd_'+str(stimulus_noise_sd)+'_added_confidence_noise_sd_'+str(confidence_noise_sd)+'_single_sample_update_forced_sequential_with_weighted_samples_beginning_'+str(num_steps)+'_steps_factor_'+str(factor)+'/' for factor in [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]]
-nonseq_dirs = [base_dir+'skip_shuff_5.0_1.0_noise_sd_'+str(stimulus_noise_sd)+'_added_confidence_noise_sd_'+str(confidence_noise_sd)+'_single_sample_update_forced_antisequential_with_weighted_samples_beginning_'+str(num_steps)+'_steps_factor_'+str(factor)+'/' for factor in [10.0, 9.0, 8.0, 7.0, 6.0, 5.0, 4.0, 3.0, 2.0]]
-
-dirs = nonseq_dirs + shuffled_dir + seq_dirs
+dirs = forced_antiseq_dirs + [base_shuffled_dir] + forced_seq_dirs
 
 # Store results
 effective_ranks = {model: [] for model in models}
@@ -70,21 +92,34 @@ for model_dir, model in zip(dirs, models):
 
     for trial in trials:
         # Load activations
-        activations_all = np.load(activation_dir+'activations/SF_doubled_lr_0.0001/100_imgs_all_activations_no_noise_1000_imagenet_0_sf_0.05_sep_0.5_lr_0.0001_model_trial_'+str(trial)+'_batch_size_1.npy')
+        activations_all = np.load(activation_dir+'activations/100_imgs_all_activations_no_noise_1000_imagenet_0_sf_0.05_sep_0.5_lr_0.0001_model_trial_'+str(trial)+'_batch_size_1.npy')
         activations_all = np.float64(activations_all)
         print("Loaded activations...")
 
         path = model_dir+'models/original_model_0_sf_0.05_sep_1.0_trial_'+str(trial)+'.pth'
         alexnet = AlexNet()
-        alexnet.load_state_dict(torch.load(path))
+        alexnet.load_state_dict(torch.load(path, map_location=torch.device('cpu')))
         readout_weights = alexnet.fc1.weight.data[0]
 
-        # Load important neuron indices
-        source_path = model_dir + 'data/skip/SF_doubled_lr_0.0001/max_abs_neurons_'+str(num_neurons)+'_sep_'+str(1.0)+'_lr_0.0001_trial_'+str(trial)+'.csv'
-        neuron_indices = np.loadtxt(source_path, delimiter=",", dtype=int)[1]
+        if by_contribution:
+            source_file = np.loadtxt(model_dir + 'data/lesioning_by_contribution_eps_0.001_200_imgs_all_neurons_dictionary_ref_'+str(ref_angle_test)+'_sf_'+str(spatial_freq_test)+'_sep_1.0_lr_0.0001_trial_'+str(trial)+'.csv', delimiter=',', dtype='float')
+            # Sort by loss (column 1) in ascending order to get neurons with lowest loss
+            source_file = source_file[source_file[:, 1].argsort()]
+            neuron_indices = []
+            accs = []
+            for entry in source_file:
+                neuron_index = int(entry[0])
+                neuron_indices.append(neuron_index)
+                neuron_accuracy = float(entry[1])
+                accs.append(neuron_accuracy)
+
+        else:
+            source_path = model_dir + 'data/max_abs_neurons_'+str(num_neurons)+'_sep_'+str(1.0)+'_lr_0.0001_trial_'+str(trial)+'.csv'
+            neuron_indices = np.loadtxt(source_path, delimiter=",", dtype=int)[1]
         sorted_indices = np.argsort(neuron_indices)
-        important_neurons = neuron_indices[sorted_indices]
-        imp_activations = activations_all[:, important_neurons]
+        # important_neurons = neuron_indices[sorted_indices]
+        # imp_activations = activations_all[:, important_neurons]
+        imp_activations = activations_all[:, neuron_indices[:num_neurons]]
 
         # Normalize activations (zero mean, unit variance across neurons)
         imp_activations = (imp_activations - np.mean(imp_activations, axis=0)) / (np.std(imp_activations, axis=0) + epsilon)
@@ -101,7 +136,7 @@ for model_dir, model in zip(dirs, models):
         effective_ranks[model].append(effective_rank)
 
         # Load test accuracy
-        transfer_data =  read_data(model_dir, 'data/transfer_accuracy_ref_0_sf_0.1_sep_'+str(1.0)+'_lr_0.0001_trial_'+str(trial)+'.csv')
+        transfer_data =  read_data(model_dir, f'data/transfer_accuracy_ref_{ref_angle_test}_sf_{spatial_freq_test}_sep_'+str(1.0)+'_lr_0.0001_trial_'+str(trial)+'.csv')
         test_acc = np.mean(transfer_data)
         test_accuracies[model].append(np.mean(test_acc))
 
@@ -131,7 +166,8 @@ for (i, model), color in zip(enumerate(models), colors):
                  color=color
                 )
     # Mean point
-    scat = plt.scatter(mean_erank[model], mean_acc[model], s=150, color=color, label=model)
+    scat = plt.scatter(mean_erank[model], mean_acc[model], s=150, color=color)
+    print(f"Model {model}: Test Accuracy = {mean_acc[model]:.4f} ± {std_acc[model]:.4f}")
     scatters.append(scat)
 
 ax = plt.gca()
@@ -158,7 +194,6 @@ print(f"Pearson r of Effective Rank vs. Test Accuracy (means): {r_val:.4f}, p = 
 
 # Plot regression with seaborn
 sns.regplot(x=x, y=y, scatter=False, ax=ax, color='black', line_kws={'linestyle':'--','linewidth':2}, label=f'r={r_val:.2f}, p={p_val:.2g}')
-plt.scatter(x, y)
 
 plt.ylabel("Transfer Accuracy", labelpad=12)
 plt.xlabel("Effective Rank", labelpad=12)
@@ -166,5 +201,8 @@ ax.spines['top'].set_visible(False)
 ax.spines['right'].set_visible(False)
 plt.legend()
 plt.tight_layout()
-plt.savefig(os.path.join(base_dir, "plots/effective_rank_vs_transfer_accuracy_single_sample_updates_"+str(num_neurons)+"_neurons.svg"))#no_noise_with_forced_seq_antiseq_with_weighted_samples_factor_"+str(factor)+"_neurons_single_sample_activations_distribution_normalized_different_palette_smaller_img_"+str(num_neurons)+"_neurons.svg"))
+if by_contribution:
+    plt.savefig(os.path.join(save_dir, "effective_rank_vs_transfer_accuracy_ratios_correlation_"+str(num_neurons)+"_neurons_by_contribution.svg"))
+else:
+    plt.savefig(os.path.join(save_dir, "effective_rank_vs_transfer_accuracy_ratios_correlation_"+str(num_neurons)+"_neurons_by_weight.svg"))
 plt.show()

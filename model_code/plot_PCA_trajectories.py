@@ -36,16 +36,16 @@ def read_data(dir, filename):
     return data
 
 base_dir = 'saved_outputs/'
-save_dir = 'saved_outputs/plots/'
+nonseq_dir = base_dir+'nonsequential/'
+seq_dir = base_dir+'sequential/'
+shuffled_dir = base_dir+'shuffled/'
+
+save_dir = base_dir+'plots/'
 
 stimulus_noise_sd = 0.02
 confidence_noise_sd = 0.3
 
-nonseq_dir = base_dir+'skip_nonseq_5.0_1.0_noise_sd_'+str(stimulus_noise_sd)+'_added_confidence_noise_sd_'+str(confidence_noise_sd)+'_single_sample_update/weights/'
-seq_dir = base_dir+'skip_seq_5.0_1.0_noise_sd_'+str(stimulus_noise_sd)+'_added_confidence_noise_sd_'+str(confidence_noise_sd)+'_single_sample_update/weights/'
-shuffled_dir = base_dir+'skip_shuff_5.0_1.0_noise_sd_'+str(stimulus_noise_sd)+'_added_confidence_noise_sd_'+str(confidence_noise_sd)+'_single_sample_update/weights/'
-
-dirs = [nonseq_dir, shuffled_dir, seq_dir]
+dirs = [nonseq_dir+'weights/', shuffled_dir+'weights/', seq_dir+'weights/']
 labels = ['Non-sequential', 'Shuffled', 'Sequential']
 
 iterations = np.arange(1,501)
@@ -60,7 +60,7 @@ train_params = [
 
 num_models = len(dirs)
 num_steps = 3 # initial, after 1st step of training, after 2nd step of training
-num_trials = 10
+num_trials = 30
 
 steps = range(num_steps)
 trials = range(1,num_trials+1)
@@ -95,15 +95,31 @@ Xt = Xt.reshape(num_models, num_steps, num_trials, 2)
 mean_pca = np.mean(Xt, axis=2)  # Shape: (num_models, num_steps, 2)
 std_pca = np.std(Xt, axis=2)  # Shape: (num_models, num_steps, 2)
 
-for i, (mean, std, model, labels) in enumerate(zip(mean_pca, std_pca, labels, plot_labels)):
+for i, (mean, std, model) in enumerate(zip(mean_pca, std_pca, labels)):
     # Plot trajectory
     plt.plot(mean[:, 0], mean[:, 1], lw=5, solid_capstyle='round', label=model, color=colours[i])
+    plt.scatter(mean[:, 0], mean[:, 1], s=150, color=colours[i])
+    
+    # Add arrows between first and second point, and second and third point
+    for j in range(2):  # 0->1 and 1->2
+        # Calculate midpoint
+        mid_x = (mean[j, 0] + mean[j+1, 0]) / 2
+        mid_y = (mean[j, 1] + mean[j+1, 1]) / 2
+        # Calculate direction from j to j+1
+        dx = mean[j+1, 0] - mean[j, 0]
+        dy = mean[j+1, 1] - mean[j, 1]
+        # Place arrow at midpoint pointing in the direction of travel
+        plt.annotate('', xy=(mid_x + dx*0.1, mid_y + dy*0.1), xytext=(mid_x - dx*0.1, mid_y - dy*0.1),
+                    arrowprops=dict(arrowstyle='->', color=colours[i], lw=3))
+    
+    # Add black star at initial point
+    plt.scatter(mean[0, 0], mean[0, 1], s=600, marker='*', color='black', zorder=10)
+    
+    # Add black circle at end point
+    plt.scatter(mean[-1, 0], mean[-1, 1], s=150, marker='o', edgecolors='black', facecolors='black', linewidths=2, zorder=10)
 
-for i, mean in enumerate(mean_pca):
-    plt.scatter(mean[:, 0], mean[:, 1], s=150)
-
-plt.xlabel("PC 1", labelpad=12)
-plt.ylabel("PC 2", labelpad=12)
+plt.xlabel(r"Readout $\mathbf{w}$ PC 1", labelpad=12)
+plt.ylabel(r"Readout $\mathbf{w}$ PC 2", labelpad=12)
 
 plt.legend()
 
@@ -114,7 +130,7 @@ ax.spines['right'].set_visible(False)
 plt.tight_layout()
 plt.savefig(save_dir+'PCA_trajectories.svg')
 
-plt.show()
+# plt.show()
 
 
 
